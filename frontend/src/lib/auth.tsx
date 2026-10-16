@@ -9,7 +9,7 @@ export type Me = { id: string; email: string; role: Role; customer_id: number | 
 type Ctx = { me: Me | null; loading: boolean; login: (e: string, p: string) => Promise<Me>; logout: () => Promise<void> };
 const AuthCtx = createContext<Ctx>(null as unknown as Ctx);
 export const useAuth = () => useContext(AuthCtx);
-export const homeFor = (r: Role) => (r === "customer" ? "/dashboard" : "/org");
+export const homeFor = (r: Role) => (r === "customer" ? "/finance" : "/org");
 export const isPublicPath = (p: string | null) => p === "/" || (p ?? "").startsWith("/login");
 
 export function AuthProvider({ children }: { children: ReactNode }) {

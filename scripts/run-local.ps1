@@ -1,3 +1,5 @@
+param([switch]$Local)   # -Local: self-contained SQLite mode (no cloud database)
+if ($Local) { $env:FINSHIELD_LOCAL = '1' }
 # Starts backend (8000) and frontend (3000) against the database configured in backend/.env.
 # First run: creates tables, generates the dataset, trains the 3 models, clusters, seeds demo users.
 $root = Split-Path $PSScriptRoot -Parent

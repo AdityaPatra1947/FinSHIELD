@@ -10,9 +10,23 @@ INCOME = {"salary", "interest_income", "other_earned_income"}
 UNRESOLVED = {"external_transfer", "unclassified"}
 
 
-def _sign(df: pd.DataFrame) -> pd.Series:
-    """+amount for expense debits, -amount for expense credits (purpose decides, not direction)."""
-    return df.amount_minor
+def effective(tx: pd.DataFrame) -> pd.DataFrame:
+    """Apply the user's classification overlay: an external transfer the customer has classified (e.g. 'gifts',
+    'family support') is an expense in that category; unclassified ones stay unresolved. Original rows are untouched."""
+    if "voided" in tx.columns:
+        tx = tx[~tx.voided.fillna(False).astype(bool)]
+    if "class_category" not in tx.columns:
+        return tx
+    any_cls = tx.class_category.notna()
+    if not any_cls.any():
+        return tx
+    ext = (tx.purpose == "external_transfer") & any_cls
+    d = tx.copy()
+    d["purpose"] = d.purpose.where(~ext, "purchase")
+    d["category"] = d.category.where(~any_cls, d.class_category)
+    if "class_subcategory" in d.columns and "subcategory" in d.columns:
+        d["subcategory"] = d.subcategory.where(~any_cls, d.class_subcategory)
+    return d
 
 
 def spending_totals(tx: pd.DataFrame, start_ts: int, end_ts: int) -> dict:
@@ -21,7 +35,8 @@ def spending_totals(tx: pd.DataFrame, start_ts: int, end_ts: int) -> dict:
     Wallet credits derived from ATM legs and cash-account movements are asset moves with
     purpose cash_withdrawal and therefore carry no spending/income effect.
     """
-    d = tx[(tx.status == "posted") & (tx.posted_ts >= start_ts) & (tx.posted_ts < end_ts)]
+    d = effective(tx)
+    d = d[(d.status == "posted") & (d.posted_ts >= start_ts) & (d.posted_ts < end_ts)]
     gross = d[d.purpose.isin(GROSS)]
     cred = d[d.purpose.isin(CREDITS)]
     inc = d[d.purpose.isin(INCOME)]
@@ -43,7 +58,8 @@ def spending_totals(tx: pd.DataFrame, start_ts: int, end_ts: int) -> dict:
 
 
 def category_breakdown(tx: pd.DataFrame, start_ts: int, end_ts: int) -> list[dict]:
-    d = tx[(tx.status == "posted") & (tx.posted_ts >= start_ts) & (tx.posted_ts < end_ts)]
+    d = effective(tx)
+    d = d[(d.status == "posted") & (d.posted_ts >= start_ts) & (d.posted_ts < end_ts)]
     gross = d[d.purpose.isin(GROSS)].groupby(d.category.fillna("uncategorized")).amount_minor.sum()
     cred = d[d.purpose.isin(CREDITS)].groupby(d.category.fillna("uncategorized")).amount_minor.sum()
     cats = sorted(set(gross.index) | set(cred.index))
@@ -58,7 +74,8 @@ def category_breakdown(tx: pd.DataFrame, start_ts: int, end_ts: int) -> list[dic
 
 def monthly_trend(tx: pd.DataFrame, start_ts: int, end_ts: int, tz: str = "Asia/Kolkata") -> list[dict]:
     """Calendar-month buckets in the reporting timezone, zero-filled."""
-    d = tx[(tx.status == "posted") & (tx.posted_ts >= start_ts) & (tx.posted_ts < end_ts)].copy()
+    d = effective(tx)
+    d = d[(d.status == "posted") & (d.posted_ts >= start_ts) & (d.posted_ts < end_ts)].copy()
     local = pd.to_datetime(d.posted_ts, unit="s", utc=True).dt.tz_convert(tz)
     d["month"] = local.dt.strftime("%Y-%m")
     months = pd.period_range(pd.Timestamp(start_ts, unit="s", tz="UTC").tz_convert(tz).tz_localize(None),

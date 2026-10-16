@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -12,7 +13,9 @@ from sqlalchemy.engine import Engine
 
 from app.core.config import ConfigError, SAFE_SSL, _psycopg_url, get_settings
 
-ART = Path(__file__).resolve().parents[2] / "artifacts"
+# FINSHIELD_LOCAL=1 forces a self-contained local mode: SQLite + artifacts/local (never touches Neon or its model files)
+LOCAL = os.environ.get("FINSHIELD_LOCAL") == "1"
+ART = Path(__file__).resolve().parents[2] / "artifacts" / ("local" if LOCAL else "")
 SQLITE_PATH = ART / "finshield.db"
 
 md = MetaData()
@@ -55,18 +58,34 @@ idempotency_keys = Table("idempotency_keys", md,
 @lru_cache
 def get_engine() -> Engine:
     s = get_settings()
-    if s.database_url:
+    if s.database_url and not LOCAL:
         u = _psycopg_url(s.database_url)
         if u.query.get("sslmode") not in SAFE_SSL:
             raise ConfigError("tls_not_enforced: DATABASE_URL must include sslmode=require|verify-ca|verify-full")
         return create_engine(u, pool_size=s.pool_size, max_overflow=s.max_overflow, pool_pre_ping=True,
                              pool_recycle=300, connect_args={"connect_timeout": s.connect_timeout_s})
-    ART.mkdir(exist_ok=True)
+    ART.mkdir(parents=True, exist_ok=True)
     return create_engine(f"sqlite:///{SQLITE_PATH}", connect_args={"check_same_thread": False})
 
 
 def backend_name() -> str:
-    return "postgresql" if get_settings().database_url else "sqlite (local fallback)"
+    return "postgresql" if (get_settings().database_url and not LOCAL) else ("sqlite (local mode)" if LOCAL else "sqlite (local fallback)")
+
+
+def wait_ready(attempts: int = 6, log=print) -> None:
+    """Block until the database answers (a suspended Neon compute can need a minute or more to wake up)."""
+    import time as _t
+    last = None
+    for i in range(attempts):
+        try:
+            with get_engine().connect() as c:
+                c.execute(text("SELECT 1"))
+            return
+        except Exception as e:  # noqa: BLE001
+            last = e
+            log(f"  waiting for the database to wake up (attempt {i + 1}/{attempts}) ...")
+            _t.sleep(5)
+    raise RuntimeError(f"database unreachable: {type(last).__name__}")
 
 
 def init_db() -> None:

@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Small pool per process; total connections must fit the Neon plan.
     pool_size: int = Field(5, ge=1)
     max_overflow: int = Field(0, ge=0)
-    connect_timeout_s: int = Field(10, ge=1)
+    connect_timeout_s: int = Field(60, ge=1)  # Neon computes can take ~1 min to resume from idle
 
     @property
     def origins(self) -> list[str]:

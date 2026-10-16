@@ -5,8 +5,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import admin, auth, routes
+from app.api.v1 import admin, auth, finance, routes
 from app.core.config import config_report, ensure_dev_pepper, get_settings
+from app.core.jsonsafe import SafeJSON
 from app.db import backend_name, init_db
 
 
@@ -22,7 +23,7 @@ async def lifespan(_: FastAPI):
 
 
 settings = get_settings()
-app = FastAPI(title="FinShield API", version="0.2.0", lifespan=lifespan, docs_url="/api/v1/docs",
+app = FastAPI(title="FinShield API", version="0.3.0", lifespan=lifespan, default_response_class=SafeJSON, docs_url="/api/v1/docs",
               openapi_url="/api/v1/openapi.json")
 app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credentials=True,
                    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["*"])
@@ -68,5 +69,6 @@ async def ready():
 
 v1.include_router(auth.router)
 v1.include_router(routes.router)
+v1.include_router(finance.router)
 v1.include_router(admin.router)
 app.include_router(v1)

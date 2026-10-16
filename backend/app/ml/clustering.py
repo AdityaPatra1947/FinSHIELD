@@ -12,14 +12,15 @@ from sklearn.metrics import adjusted_rand_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
 
 from app.ml.generator import DAY
-from app.services.spending import CREDITS, GROSS, INCOME
+from app.services.spending import CREDITS, GROSS, INCOME, effective
 
 FEATURE_VERSION = "cf1"
-CATS = ["groceries", "dining", "transport", "shopping", "entertainment", "health", "utilities", "travel", "education", "rent", "fees"]
+CATS = ["groceries", "dining", "transport", "shopping", "entertainment", "health", "utilities", "travel", "education", "rent", "fees", "insurance", "debt_emi", "personal_care", "social", "household_help"]
 LOG_FEATS = ["gross_inr", "credits_inr", "median_purchase_inr", "income_inr", "weekly_cv"]
 
 
 def customer_features(tx: pd.DataFrame, as_of_ts: int, window_days: int = 90) -> pd.DataFrame:
+    tx = effective(tx)
     start = as_of_ts - window_days * DAY
     d = tx[(tx.status == "posted") & (tx.posted_ts >= start) & (tx.posted_ts < as_of_ts)]
     rows = []

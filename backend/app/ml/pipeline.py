@@ -105,7 +105,7 @@ def train_models(log=print) -> dict:
 
 def recluster(log=print) -> dict:
     eng = get_engine()
-    tx = pd.read_sql("SELECT customer_id,status,posted_ts,purpose,direction,category,account_kind,amount_minor FROM transactions", eng)
+    tx = pd.read_sql("SELECT customer_id,status,posted_ts,purpose,direction,category,account_kind,amount_minor,class_category,class_subcategory FROM transactions", eng)
     as_of = generator.ORIGIN_TS + 365 * generator.DAY
     log("clustering ...")
     clus = clustering.run_clustering(tx, as_of, 42)
@@ -116,6 +116,8 @@ def recluster(log=print) -> dict:
 def build_all(customers: int = 600, seed: int = 42, log=print) -> None:
     t0 = time.time()
     generate_dataset(customers, seed, log)
+    from app.finance.enrich import enrich
+    enrich(log)
     train_models(log)
     recluster(log)
     log(f"done in {time.time() - t0:.0f}s")
@@ -123,4 +125,4 @@ def build_all(customers: int = 600, seed: int = 42, log=print) -> None:
 
 if __name__ == "__main__":
     stage = sys.argv[1] if len(sys.argv) > 1 else "all"
-    {"all": build_all, "data": generate_dataset, "train": train_models, "cluster": recluster}[stage]()
+    {"all": build_all, "data": generate_dataset, "finance": lambda: __import__("app.finance.enrich", fromlist=["enrich"]).enrich(), "train": train_models, "cluster": recluster}[stage]()

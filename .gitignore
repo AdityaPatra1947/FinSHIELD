@@ -19,3 +19,8 @@ data/private/
 
 *.egg-info/
 *.egg-info
+
+*.pkl
+backend/*.log
+
+*.tsbuildinfo
