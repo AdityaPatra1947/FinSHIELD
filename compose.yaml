@@ -1,0 +1,14 @@
+# Local development only; deployed persistence is Neon PostgreSQL.
+# Password comes from your shell/.env (LOCAL_PG_PASSWORD) - nothing is hardcoded.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: finshield
+      POSTGRES_USER: finshield_owner
+      POSTGRES_PASSWORD: ${LOCAL_PG_PASSWORD:?set LOCAL_PG_PASSWORD}
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+volumes:
+  pgdata:
+# api / worker / frontend services are added in M1 once Dockerfiles exist.
